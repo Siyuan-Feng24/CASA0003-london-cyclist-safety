@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title>London Bicycle Accident 3D Map (2023)</title> 
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@100..900&display=swap" rel="stylesheet">
+    
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <style>
+        body { margin:0; padding:0; }
+        #map { position:absolute; top:0; bottom:0; width:78%; right:0; }
+
+        .info-panel {
+            font: 16px/22px 'Lexend Deca', Arial, Helvetica, sans-serif;
+            position: absolute;
+            width: 20%;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            background-color: #272829;
+            color: white;
+            padding: 20px;
+            margin: 0;
+            overflow-y: auto;
+        }
+
+        .info-panel h1 {
+            font-size: 20px;
+            margin: 0 0 26px;
+            line-height: 1.3;
+        }
+        .info-panel h2 {
+            font-size: 14px;
+            margin: 35px 0 5px;
+        }
+
+        .info-panel .slider {
+            width: 100%;
+        }
+        
+        .info-panel .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-top: -1px; 
+        }
+        
+        .info-panel .line-chart {
+            width: 100%;
+            height: 150px;
+            margin: 10px 0;
+        }
+        
+        .line-chart svg {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        
+        .line-chart path {
+            fill: none;
+            stroke-width: 3;
+        }
+        
+        .line-chart circle {
+            fill: white;
+            stroke-width: 2;
+        }
+        
+        .line-chart .axis path,
+        .line-chart .axis line {
+            stroke: rgba(255, 255, 255, 0.3);
+        }
+        
+        .line-chart .axis text {
+            fill: rgba(255, 255, 255, 0.7);
+            font-size: 10px;
+        }
+        
+        .line-chart .highlight {
+            stroke-width: 2;
+            r: 5;
+        }
+        
+        .line-chart .casualty-label {
+        font-size: 12px;
+        font-weight: bold;
+        }
+        
+        .info-panel .intro-text {
+            font-size: 14px;
+            margin: 0 0 20px;
+            line-height: 1.4;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .info-panel .severity-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .info-panel .severity-buttons img {
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 5px;
+            padding: 3px;
+        }
+        
+        .info-panel .severity-buttons img.selected {
+            filter: brightness(1.2);
+            box-shadow: 0 0 0 2px white;
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .info-panel .most-injury {
+            margin: 10px 0;
+        }
+
+        .info-panel .most-injury span {
+            color: grey;
+            cursor: pointer;
+        }
+
+        .info-panel .most-injury button {
+            margin-left: 10px;
+        }
+        
+        .info-panel .most-injury span.clickable-borough {
+            text-decoration: underline;
+            cursor: pointer;
+            color: inherit; 
+        }
+
+        .info-panel .clickable-borough {
+            cursor: pointer; 
+            color: inherit; 
+            text-decoration: underline;
+        }
+        
+        .info-panel .clickable-borough:hover {
+            color: #B2B2B2;
+            text-decoration: underline;
+        }
+        
+        .info-panel h2 .borough-name{
+            font-weight: normal; 
+            display: inline;
+            color: inherit; 
+            text-decoration: underline; 
+        }
+        
+        .info-panel h2 #hide-button {
+            margin-left: 8px;
+            vertical-align: middle;
+            font-family: 'Lexend Deca', Arial, Helvetica, sans-serif;
+            opacity: 0.85;
+        }
+        
+        .info-panel .credit{
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        
+        .credit-link{
+            color: #FFF
+        }
+        
+        .credit-link:hover{
+            color: #B2B2B2
+        }
+        
+        .map-legend {
+            position: absolute;
+            top: 10px;
+            right: 52px; 
+            background-color: rgba(255, 255, 255, 0.75);
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            font-family: 'Lexend Deca', Arial, Helvetica, sans-serif;
+            font-size: 13px;
+            z-index: 1;
+            color: #272829; 
+        }
+
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-family: 'Lexend Deca', Arial, Helvetica, sans-serif;
+            font-size: 13px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .color-box {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+        
+    </style>
+</head>
+
+<body>
+    <div id='map'></div>
+    <div class='info-panel'>
+        <h1>London Bicycle Accident Analysis (2018~2023)</h1>
+        
+        <!-- introduction -->
+        <p class="intro-text">Explore London's cycling safety with this dynamic 3D visualization. Move the slider to see how safety has evolved from 2018 to 2023, use the buttons to explore different injury severities, and click on the most affected borough name to highlight key areas. You can also right-click the map and drag or use the mouse wheel to obtain more angles.</p>
+        
+        <!-- year slider -->
+        <h2>Year</h2>
+        <input type="range" min="2018" max="2023" value="2023" class="slider" id="year-slider">
+        <div class="slider-labels">
+            <span>2018</span>
+            <span>2019</span>
+            <span>2020</span>
+            <span>2021</span>
+            <span>2022</span>
+            <span>2023</span>
+        </div>
+
+        <!-- line chart -->
+        <h2>Total Casualties Over Time</h2>
+        <div class="line-chart" id="line-chart"></div>
+
+        <!-- severity button -->
+        <h2>Injury Severity</h2>
+        <div class="severity-buttons">
+            <img src="data/icon_fatal.png" id="fatal" title="Fatal">
+            <img src="data/icon_serious.png" id="serious" title="Serious">
+            <img src="data/icon_slight.png" id="slight" title="Slight">
+            <img src="data/icon_total.png" id="total" title="Total">
+        </div>
+
+        <!-- most injury borough -->
+        <h2>Most Injury: <span id="most-injury-borough" class="borough-name">___</span> <button id="hide-button">Hide</button></h2>
+
+        
+        <!-- credit -->
+        <p class="credit">
+            Data: Road Safety Data, Department for Transport.<a href="https://www.data.gov.uk/dataset/cb7ae6f0-4be6-4935-9277-47e5ce24a11f/road-accidents-safety-data" target="_blank" class="credit-link"> See here</a>
+        </p>
+    </div>
+    
+    <!-- map legend -->
+    <div class='map-legend'>
+        <div class='legend-title'>Severity Level</div>
+        <div class='legend-item'>
+            <div class='color-box' style='background-color: rgba(231, 125, 4, 0.97);'></div>
+            <span>Total</span>
+        </div>
+        <div class='legend-item'>
+            <div class='color-box' style='background-color: rgba(140, 180, 50, 0.97);'></div>
+            <span>Slight</span>
+        </div>
+        <div class='legend-item'>
+            <div class='color-box' style='background-color: rgba(239, 182, 0, 0.97);'></div>
+            <span>Serious</span>
+        </div>
+        <div class='legend-item'>
+            <div class='color-box' style='background-color: rgba(195, 40, 76, 0.97);'></div>
+            <span>Fatal</span>
+        </div>
+    </div>
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZnN5dml2aSIsImEiOiJjbTZpMjVveXYwMnc4MmpwZnc5NzN5MnF1In0.AIVxCzGaMTB1Ne1uusCRww';
+
+        var map = new mapboxgl.Map({
+            container: 'map', 
+            style: 'mapbox://styles/fsyvivi/cm83yv9xh001h01s3fjcdbeli', 
+            center: [-0.12, 51.51], 
+            zoom: 9.7, 
+            pitch: 50 
+        });
+        
+        // zoom in/out buttons
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        
+        // default layer
+        var selectedSeverity = 'total'; 
+        var selectedYear = 2023;
+        
+        // casualty tileset data store
+        var layerInfo = {
+            2018: {
+                slight: {
+                    source: 'mapbox://fsyvivi.1qsf2po9',
+                    layer: 'Count_2018_slight_84-bngpfi'
+                },
+                serious: {
+                    source: 'mapbox://fsyvivi.2r1vq5j9',
+                    layer: 'Count_2018_serious_84-5xegqn'
+                },
+                fatal: {
+                    source: 'mapbox://fsyvivi.6aenn0dd',
+                    layer: 'Count_2018_fatal_84-448x7i'
+                },
+                total: {
+                    source: 'mapbox://fsyvivi.6fmbdjya',
+                    layer: 'Count_casualty_2018_84-6aizch'
+                }
+            },
+            
+            2019: {
+                slight: {
+                    source: 'mapbox://fsyvivi.3odlh6nj',
+                    layer: 'Count_2019_slight_84-dlzpj5'
+                },
+                serious: {
+                    source: 'mapbox://fsyvivi.96s9msm8',
+                    layer: 'Count_2019_serious_84-cc1ohd'
+                },
+                fatal: {
+                    source: 'mapbox://fsyvivi.0613patz',
+                    layer: 'Count_2019_fatal_84-5sbsar'
+                },
+                total: {
+                    source: 'mapbox://fsyvivi.1o4bekxo',
+                    layer: 'Count_casualty_2019_84-d6gfld'
+                }
+            },
+            
+            2020: {
+                slight: {
+                    source: 'mapbox://fsyvivi.bshhj76d',
+                    layer: 'Count_2020_slight_84-dnrcj9'
+                },
+                serious: {
+                    source: 'mapbox://fsyvivi.621qidiy',
+                    layer: 'Count_2020_serious_84-aj8iny'
+                },
+                fatal: {
+                    source: 'mapbox://fsyvivi.biemuo3i',
+                    layer: 'Count_2020_fatal_84-71ulsw'
+                },
+                total: {
+                    source: 'mapbox://fsyvivi.83noo0rt',
+                    layer: 'Count_casualty_2020_84-4yaj0l'
+                }
+            },
+            
+            2021: {
+                slight: {
+                    source: 'mapbox://fsyvivi.03ksur5u',
+                    layer: 'Count_2021_slight_84-07lf64'
+                },
+                serious: {
+                    source: 'mapbox://fsyvivi.2yd7j45f',
+                    layer: 'Count_2021_serious_84-b6rfhn'
+                },
+                fatal: {
+                    source: 'mapbox://fsyvivi.1ek2o0du',
+                    layer: 'Count_2021_fatal_84-84hizi'
+                },
+                total: {
+                    source: 'mapbox://fsyvivi.72nyusko',
+                    layer: 'Count_casualty_2021_84-7krh84'
+                }
+            },
+            
+            2022: {
+                slight:{
+                    source: 'mapbox://fsyvivi.a9oe4hjj', 
+                    layer: 'Count_2022_slight_84-902in9'
+                },
+                serious: {
+                    source: 'mapbox://fsyvivi.1tijz98g', 
+                    layer: 'Count_2022_serious_84-cz972f'
+                }, 
+                fatal: {
+                    source: 'mapbox://fsyvivi.4yzwsh49', 
+                    layer: 'Count_2022_fatal_84-1vy2j6'
+                },
+                total: {
+                    source: 'mapbox://fsyvivi.8kccmij7',
+                    layer: 'Count_casualty_2022_84-8akv2a'
+                }
+            }, 
+            
+            2023: {
+                slight: {
+                    source: 'mapbox://fsyvivi.dzsjylik',
+                    layer: 'Count_2023_slight_84-262fwc'
+                },
+                serious: {
+                    source: 'mapbox://fsyvivi.9pkjf3s3',
+                    layer: 'Count_2023_serious_84-2vnqyz'
+                },
+                fatal: {
+                    source: 'mapbox://fsyvivi.1r5cq6ju',
+                    layer: 'Count_2023_fatal_84-7mjzyl'
+                },
+                 total: {
+                    source: 'mapbox://fsyvivi.bjrpdhrd',
+                    layer: 'Count_casualty_2023_84-33qen5'
+                }
+            }
+        };
+        
+        // colour gradient
+        var severityColorConfigs = {
+            slight: {
+                stops: [
+                    [0,  'rgba(224, 235, 161, 0.97)'],
+                    [7, 'rgba(195, 218, 111, 0.97)'],
+                    [12, 'rgba(140, 180, 50, 0.97)']
+                ],
+                range: [0, 20]
+            },
+            serious: {
+                stops: [
+                    [0,  'rgba(244, 219, 156, 0.97)'],
+                    [2,  'rgba(250, 201, 68, 0.97)'],
+                    [3, 'rgba(239, 182, 0, 0.97)']
+                ],
+                range: [0, 10]
+            },
+            fatal: {
+                stops: [
+                    [0,  'rgba(255, 203, 221, 0.97)'],
+                    [2,  'rgba(195, 40, 76, 0.97)'],
+                ],
+                range: [0, 5]
+            },
+            total: {
+                stops: [
+                    [0, 'rgba(247, 209, 172, 0.97)'],
+                    [8, 'rgba(248, 174, 99, 0.97)'],
+                    [15, 'rgba(231, 125, 4, 0.97)']
+                ],
+                range: [0, 30]
+            }
+        };
+        
+        // default severity colors
+        var severityColors = {
+            slight: 'rgb(140, 180, 50)',
+            serious: 'rgb(239, 182, 0)',
+            fatal: 'rgb(195, 40, 76)',
+            total: 'rgb(231, 125, 4)'
+        };
+
+
+        // most injury boroughs
+        var mostInjuryData = [
+            {year_severity: "2018_slight", borough_name: "Westminster", count: 307},
+            {year_severity: "2019_slight", borough_name: "Southwark", count: 318},
+            {year_severity: "2020_slight", borough_name: "Wandsworth", count: 274},
+            {year_severity: "2021_slight", borough_name: "Westminster", count: 312},
+            {year_severity: "2022_slight", borough_name: "Westminster", count: 328},
+            {year_severity: "2023_slight", borough_name: "Westminster", count: 345},
+            {year_severity: "2018_serious", borough_name: "Westminster", count: 72},
+            {year_severity: "2019_serious", borough_name: "Westminster", count: 77},
+            {year_severity: "2020_serious", borough_name: "Lambeth", count: 73},
+            {year_severity: "2021_serious", borough_name: "Westminster", count: 93},
+            {year_severity: "2022_serious", borough_name: "Westminster", count: 105},
+            {year_severity: "2023_serious", borough_name: "Westminster", count: 92},
+            {year_severity: "2018_fatal", borough_name: "-1", count: -1},
+            {year_severity: "2019_fatal", borough_name: "-1", count: -1},
+            {year_severity: "2020_fatal", borough_name: "-1", count: -1},
+            {year_severity: "2021_fatal", borough_name: "Havering", count: 2},
+            {year_severity: "2022_fatal", borough_name: "Southwark", count: 2},
+            {year_severity: "2023_fatal", borough_name: "Hackney", count: 2},
+            {year_severity: "2018_total", borough_name: "Westminster", count: 380}, 
+            {year_severity: "2019_total", borough_name: "Westminster", count: 388},
+            {year_severity: "2020_total", borough_name: "Wandsworth", count: 334}, 
+            {year_severity: "2021_total", borough_name: "Westminster", count: 405}, 
+            {year_severity: "2022_total", borough_name: "Westminster", count: 433}, 
+            {year_severity: "2023_total", borough_name: "Westminster", count: 437}
+        ];
+
+        // column flashing anima
+        var flashingInterval = null;
+        
+        map.on('load', function() {
+            // set light
+            map.setLight({
+                anchor: 'viewport', 
+                color: '#ffffff', 
+                intensity: 0.15
+            });
+                
+            // iterate through data to create map layers
+            for (var year of [2018, 2019, 2020, 2021, 2022, 2023]) {
+                for (var severity of ['slight', 'serious', 'fatal', 'total']) {
+                    var info = layerInfo[year][severity];
+                    var layerId = `${year}-${severity}-layer`;
+                    var sourceId = `${year}-${severity}-source`;
+                    
+                    map.addSource(sourceId, {
+                        type: 'vector',
+                        url: info.source
+                    });
+
+                    map.addLayer({
+                        id: layerId,
+                        type: 'fill-extrusion',
+                        source: sourceId, 
+                        'source-layer': info.layer,
+                        paint: {
+                            'fill-extrusion-color': {
+                                property: 'casualty_count',
+                                type: 'exponential',
+                                stops: severityColorConfigs[severity].stops
+                            },
+                            'fill-extrusion-height': [
+                                'interpolate', ['linear'],
+                                ['number', ['get', 'casualty_count'], 0],
+                                severityColorConfigs[severity].range[0], 0,
+                                severityColorConfigs[severity].range[1], severityColorConfigs[severity].range[1] * 1500
+                            ],
+                            'fill-extrusion-opacity': 0, // initially all hidden
+                            'fill-extrusion-opacity-transition': {
+                                duration: 1000,
+                                delay: 0
+                            }
+                        }
+                    });
+                }
+            }
+            
+            // set initial layer visibility
+            updateDisplay();
+            
+            // event listener - year slider
+            document.getElementById('year-slider').addEventListener('input', function(e) {
+                selectedYear = parseInt(e.target.value);
+                updateDisplay();
+            });
+            
+            // event listener - hide button
+            document.getElementById('hide-button').addEventListener('click', function() {
+                if (flashingInterval) {
+                    clearInterval(flashingInterval);
+                    flashingInterval = null;
+                }
+                resetAllBoroughColors();
+            });
+        });
+
+            // event listener - severity buttons
+            document.getElementById('fatal').addEventListener('click', function() {
+                updateSeverity('fatal');
+            });
+            document.getElementById('serious').addEventListener('click', function() {
+                updateSeverity('serious');
+            });
+            document.getElementById('slight').addEventListener('click', function() {
+                updateSeverity('slight');
+            });
+            
+            document.getElementById('total').addEventListener('click', function() {
+                updateSeverity('total');
+            });
+            
+            document.getElementById('total').classList.add('selected');
+            
+            // event listener - most injury borough
+            document.getElementById('most-injury-borough').addEventListener('click', function() {
+                var boroughName = this.getAttribute('data-borough');
+                if (boroughName && boroughName !== "-1") {
+                    if (flashingInterval) {
+                        clearInterval(flashingInterval);
+                        flashingInterval = null;
+                        resetAllBoroughColors();
+                    } else {
+                        startFlashingBorough(boroughName);
+                    }
+                }
+            });
+            
+
+        
+        function updateSeverity(severity) {
+            selectedSeverity = severity;
+            updateDisplay();
+        }
+        
+        function updateDisplay() {
+            // Hide all layers
+            for (var year of [2018, 2019, 2020, 2021, 2022, 2023]) {
+                for (var severity of ['slight', 'serious', 'fatal', 'total']) {
+                    var layerId = `${year}-${severity}-layer`;
+                    map.setPaintProperty(layerId, 'fill-extrusion-opacity', 
+                    (year === selectedYear && severity === selectedSeverity) ? 0.93 : 0);
+                }
+            }
+
+            // show the selected layer
+            var layerId = `${selectedYear}-${selectedSeverity}-layer`;
+            map.setPaintProperty(layerId, 'fill-extrusion-opacity', 0.93);
+
+            // update selected severity button
+            document.getElementById('fatal').classList.remove('selected');
+            document.getElementById('serious').classList.remove('selected');
+            document.getElementById('slight').classList.remove('selected');
+            document.getElementById('total').classList.remove('selected');
+            document.getElementById(selectedSeverity).classList.add('selected');
+
+            // update year slider
+            var yearSlider = document.getElementById('year-slider');
+            if (parseInt(yearSlider.value) !== selectedYear) {
+                yearSlider.value = selectedYear;
+            }
+            updateMostInjuryBorough();
+        }
+        
+        // update most injury borough
+        function updateMostInjuryBorough() {
+            if (flashingInterval) {
+                clearInterval(flashingInterval);
+                flashingInterval = null;
+            }
+
+            resetAllBoroughColors();
+
+            var key = selectedYear + "_" + selectedSeverity;
+            var mostInjuryInfo = mostInjuryData.find(function(d) {
+                return d.year_severity === key;
+            });
+
+            var mostInjuryElement = document.getElementById('most-injury-borough');
+
+            if (!mostInjuryInfo) {
+                mostInjuryElement.textContent = "Data not available";
+                return;
+            }
+
+            if (mostInjuryInfo.borough_name === "-1") {
+                mostInjuryElement.textContent = "Not unique";
+            } else {
+                mostInjuryElement.textContent = mostInjuryInfo.borough_name;
+                mostInjuryElement.setAttribute('data-borough', mostInjuryInfo.borough_name);
+                mostInjuryElement.style.cursor = 'pointer';
+                mostInjuryElement.classList.add('clickable-borough');
+            }
+        }
+
+        function resetAllBoroughColors() {
+            var layerId = `${selectedYear}-${selectedSeverity}-layer`;
+
+            map.setPaintProperty(layerId, 'fill-extrusion-color', {
+                property: 'casualty_count',
+                type: 'exponential',
+                stops: severityColorConfigs[selectedSeverity].stops
+            });
+        }
+
+        function startFlashingBorough(boroughName) {
+            var layerId = `${selectedYear}-${selectedSeverity}-layer`;
+            var flashing = true;
+
+            map.setPaintProperty(layerId, 'fill-extrusion-color-transition', {
+                duration: 500,
+                delay: 0
+            });
+
+            flashingInterval = setInterval(function() {
+                if (flashing) {
+                    var colorExpression = [
+                        'case',
+                        ['==', ['get', 'NAME'], boroughName],
+                        '#B03052', // flashing color
+                        ['interpolate', ['linear'], ['get', 'casualty_count']]
+                            .concat([].concat(...severityColorConfigs[selectedSeverity].stops))
+                    ];
+                    map.setPaintProperty(layerId, 'fill-extrusion-color', colorExpression);
+                } else {
+                    resetAllBoroughColors();
+                }
+
+                // toggle flashing state
+                flashing = !flashing;
+            }, 500);
+        }
+        
+        var lineChartCreated = false;
+        createLineChart();
+        function createLineChart(){
+            try{
+                d3.select("#line-chart").selectAll("*").remove();
+                
+                // chart margins
+                var margin = {top: 20, right: 20, bottom: 30, left: 40},
+                    width = document.getElementById('line-chart').clientWidth - margin.left - margin.right,
+                    height = document.getElementById('line-chart').clientHeight - margin.top - margin.bottom;
+
+                // create svg element
+                var svg = d3.select("#line-chart")
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                    // use hard code here to avoid "local server" error
+                    var data = [
+                        {year: 2018, total_casualty_count: 4755},
+                        {year: 2019, total_casualty_count: 4630},
+                        {year: 2020, total_casualty_count: 4791},
+                        {year: 2021, total_casualty_count: 5283},
+                        {year: 2022, total_casualty_count: 5093},
+                        {year: 2023, total_casualty_count: 4797}
+                    ]
+
+                    // x-axis scale
+                    var x = d3.scaleLinear()
+                        .domain([2018, 2023])
+                        .range([0, width]);
+
+                    // y-axis scale
+                    var y = d3.scaleLinear()
+                        .domain([3500, 6000])
+                        .range([height, 0]);
+
+                    // add x-axis
+                    svg.append("g")
+                        .attr("class", "axis")
+                        .attr("transform", "translate(0," + height + ")")
+                        .call(d3.axisBottom(x).tickFormat(d3.format("d")).ticks(6));  // "d": integer year
+
+                    // add y-axis
+                    svg.append("g")
+                        .attr("class", "axis")
+                        .call(d3.axisLeft(y).tickFormat(d3.format("d")).tickValues([3500, 4000, 4500, 5000, 5500, 6000])); 
+
+                    // line generator
+                    var line = d3.line()
+                        .x(function(d) { return x(d.year); })
+                        .y(function(d) { return y(d.total_casualty_count); })
+
+                    svg.append("path")
+                        .datum(data)
+                        .attr("class", "line")
+                        .attr("d", line)
+                        .style("stroke", "#FFF");  
+
+                    // add data points
+                    svg.selectAll(".dot")
+                        .data(data)
+                        .enter().append("circle")
+                        .attr("class", "dot")
+                        .attr("cx", function(d) { return x(d.year); })
+                        .attr("cy", function(d) { return y(d.total_casualty_count); })
+                        .attr("r", 4)
+                        .style("stroke", "#C7C8CC"); // color
+
+                    var yearSlider = document.getElementById('year-slider');
+                    yearSlider.addEventListener('input', function() {
+                        highlightYear(+this.value);
+                    });
+
+                    // initially highlight
+                    highlightYear(selectedYear);
+
+                    function highlightYear(year) {
+                        svg.selectAll(".highlight").classed("highlight", false);
+                        
+                        svg.selectAll(".casualty-label").remove();
+
+                        // highlight specific year
+                        var selectedData = data.find(function(d) { return d.year === year; });
+                        if (selectedData) {
+                            svg.selectAll(".dot")
+                                .filter(function(d) { return d.year === year; })
+                                .classed("highlight", true);
+                            
+                            svg.append("text")
+                                .attr("class", "casualty-label")
+                                .attr("x", x(selectedData.year))
+                                .attr("y", y(selectedData.total_casualty_count) - 12) 
+                                .attr("text-anchor", "middle")
+                                .attr("fill", "#FFFFFF")
+                                .text(selectedData.total_casualty_count);
+                                            }
+                                        }
+                
+                lineChartCreated = true;
+                
+            } catch(error) {
+                console.error("Error creating chart:", error);
+                document.getElementById('line-chart').innerHTML = "<p style='color:white;'>Error creating chart.</p>";
+            }
+        }
+        
+    </script>
+</body>
+</html>
